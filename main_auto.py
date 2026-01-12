@@ -5,8 +5,9 @@ from pynput import keyboard
 
 from config import load_config
 from interact import StopFlag, start_emergency_listener, calibrate_click, select_all_copy_verified, \
-    extract_last_result_block, parse_result_block, send_command, wait_for_bot_turn, get_last_sender, \
-    refresh_chat_window_safe
+    send_command, wait_for_bot_turn, get_last_sender, refresh_chat_window_safe
+from parse import extract_last_result_block, parse_result_block
+
 
 # =========================
 # Settings
@@ -24,20 +25,22 @@ EXIT_KEY = keyboard.Key.f12
 STOP = StopFlag(EXIT_KEY)
 
 # 채팅방 재오픈
-REFRESH_EVERY = 3
+REFRESH_EVERY = 1000
 
 
 # =========================
 # 의사결정 로직
 # =========================
 def decide_next_command(level: int, gold: int) -> Tuple[Optional[str], str]:
+    # if level >= 20:
+    #     return None, f"종료: 레벨 {level} >= 20"
     if level >= 18:
-        return None, f"종료: 레벨 {level} >= 18"
+        return COMMAND_SELL, f"레벨 {level} >= 18 → 판매"
 
-    if level <= 7:
-        return COMMAND_ENHANCE, f"레벨 {level} ≤ 7 → 강화"
+    if level <= 8:
+        return COMMAND_ENHANCE, f"레벨 {level} ≤ 8 → 강화"
 
-    threshold = 100_000 + (level - 8) * 300_000
+    threshold = 100_000 + (level - 9) * 150_000
     if gold < threshold:
         return COMMAND_SELL, f"레벨 {level}, 골드 {gold:,} < 판매 기준 {threshold:,} → 판매"
     return COMMAND_ENHANCE, f"레벨 {level}, 골드 {gold:,} ≥ 판매 기준 {threshold:,} → 강화"
