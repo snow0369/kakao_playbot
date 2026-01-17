@@ -6,7 +6,8 @@ from pynput import keyboard
 from config import load_config
 from interact import StopFlag, start_emergency_listener, calibrate_click, select_all_copy_verified, \
     send_command, wait_for_bot_turn, get_last_sender, refresh_chat_window_safe
-from parse import extract_last_result_block, parse_result_block
+from parse import parse_kakao, extract_triplets, extract_triplets_last, extract_current_weapon, extract_current_gold, \
+    WeaponInfo
 
 
 # =========================
@@ -31,16 +32,28 @@ REFRESH_EVERY = 1000
 # =========================
 # 의사결정 로직
 # =========================
-def decide_next_command(level: int, gold: int) -> Tuple[Optional[str], str]:
+def decide_next_command(weapon: WeaponInfo, gold: int) -> Tuple[Optional[str], str]:
+    level = weapon.level
     # if level >= 20:
     #     return None, f"종료: 레벨 {level} >= 20"
-    if level >= 18:
-        return COMMAND_SELL, f"레벨 {level} >= 18 → 판매"
-
+    threshold_table = {
+        9: 500_000,
+        10: 1_000_000,
+        11: 2_000_000,
+        12: 3_000_000,
+        13: 5_000_000,
+        14: 7_000_000,
+        15: 10_000_000,
+        16: 12_000_000,
+        17: 20_000_000,
+    }
     if level <= 8:
         return COMMAND_ENHANCE, f"레벨 {level} ≤ 8 → 강화"
 
-    threshold = 100_000 + (level - 9) * 150_000
+    if level >= 18:
+        return COMMAND_SELL, f"레벨 {level} >= 18 → 판매"
+
+    threshold = threshold_table[level]
     if gold < threshold:
         return COMMAND_SELL, f"레벨 {level}, 골드 {gold:,} < 판매 기준 {threshold:,} → 판매"
     return COMMAND_ENHANCE, f"레벨 {level}, 골드 {gold:,} ≥ 판매 기준 {threshold:,} → 강화"
@@ -63,13 +76,13 @@ def main():
 
     # 초기 상태
     full0 = select_all_copy_verified(chat_text_xy, STOP, retries=3)
-    block0 = extract_last_result_block(full0)
-    info0 = parse_result_block(block0)
+    block0 = parse_kakao(full0)
+    reply0, _, _ = extract_triplets(block0, USER_NAME, BOT_SENDER_NAME)
 
-    current_level = info0.level if info0.level is not None else 0
-    current_gold = info0.gold if info0.gold is not None else 0
+    current_weapon = extract_current_weapon(reply0)
+    current_gold = extract_current_gold(reply0)
 
-    print(f"\n[초기 상태] 레벨={current_level}, 골드={current_gold:,}")
+    print(f"\n[초기 상태] 무기=[{current_weapon.level}] {current_weapon.name}, 골드={current_gold:,}")
 
     loop_count = 0
     command = COMMAND_ENHANCE
@@ -95,28 +108,31 @@ def main():
                                  timeout_sec=10.0, poll_interval=0.35)
 
         # 3) 결과 블록 파싱
-        block = extract_last_result_block(full)
-        info = parse_result_block(block)
+        block = parse_kakao(full)
+        reply, _, usercomm = extract_triplets_last(block, USER_NAME, BOT_SENDER_NAME)
 
-        # 4) busy면 결과가 올 때까지 한 번 더
-        if info.rtype == "busy":
-            full = wait_for_bot_turn(chat_text_xy, USER_NAME, BOT_SENDER_NAME, STOP,
-                                     timeout_sec=10.0, poll_interval=0.35)
-            block = extract_last_result_block(full)
-            info = parse_result_block(block)
+        # 4) busy면 패스
+        if reply.type == "busy":
+            time.sleep(0.5)
+            continue
 
         # 5) 상태 업데이트 (파싱 실패 시 이전 값 유지)
-        if info.level is not None:
-            current_level = info.level
-        if info.gold is not None:
-            current_gold = info.gold
+        _current_weapon = extract_current_weapon([reply])
+        _current_gold = extract_current_gold([reply])
+        if _current_weapon is not None:
+            current_weapon = _current_weapon
+        if _current_gold is not None:
+            current_gold = _current_gold
 
         sender = get_last_sender(full)
-        print(f"\n[수신] last_sender={sender}, type={info.rtype}")
-        print(f"[상태] 레벨={current_level}, 골드={current_gold:,}")
+        print(f"\n[수신] last_sender={sender}, type={reply.type}")
+        print(f"[상태] 무기=[{current_weapon.level}] {current_weapon.name}, 골드={current_gold:,}")
 
         # 6) 다음 커맨드 결정
-        next_cmd, reason = decide_next_command(current_level, current_gold)
+        if reply.type == "insufficient_gold":
+            next_cmd, reason = COMMAND_SELL, "골드 부족 → 판매"
+        else:
+            next_cmd, reason = decide_next_command(current_weapon, current_gold)
         print(f"[결정] {reason}")
 
         if next_cmd is None:
@@ -136,3 +152,4 @@ if __name__ == "__main__":
         print(f"\n프로그램 종료: {e}")
     except Exception as e:
         print(f"\n오류로 종료: {e}")
+        raise e

@@ -1,11 +1,13 @@
 from dataclasses import dataclass
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Iterable
 
 import pandas as pd
 import re
 
 from utils import _to_int
 from .types import ReplyInfo, ReplyType, WeaponInfo, UserCommand, UserCommandTarget, MacroAction
+
+# TODO: add run out of money
 
 # =========================
 # Regex / parsing helpers
@@ -38,6 +40,17 @@ RE_BREAK_NOTICE = re.compile(
 RE_SELL = re.compile(r"검 판매")
 RE_SELL_SOLD = re.compile(r"'\s*\[\+(\d+)\]\s*([^']+?)\s*'")  # 판매된 무기: '[+10] ...'
 RE_SELL_NEW = re.compile(r"새로운\s*검\s*획득\s*:\s*\[\+(\d+)\]\s*([^\n\r]+)")
+
+# busy
+RE_BUSY = re.compile(r"강화 중이니\s*잠깐\s*기다리도록")
+
+# insufficient gold (첫 메시지)
+RE_NO_GOLD = re.compile(r"골드가\s*부족해")
+RE_NEED_GOLD = re.compile(r"필요\s*골드\s*:\s*([\d,]+)G")
+RE_LEFT_GOLD = re.compile(r"남은\s*골드\s*:\s*([\d,]+)G")
+
+# insufficient gold (둘째 메시지: 안내/버튼류)
+RE_GO_EARN_GOLD = re.compile(r"골드\s*모으러가기|출석체크|검\s*'판매'")
 
 # user command
 RE_MENTION = re.compile(r"^\s*@(\S+)\s*(.*)\s*$")  # "@대상 나머지"
@@ -135,12 +148,26 @@ class _State:
     current_weapon: Optional[WeaponInfo] = None
 
 
+def extract_triplets_last(
+        df: pd.DataFrame,
+        user_name: str,
+        bot_name: str,
+        macro_name: str = "매크로",
+        lookahead_max: int = 3,
+) -> Tuple[ReplyInfo, UserCommand, UserCommand]:
+    r, cb, cm = extract_triplets(df, user_name, bot_name, macro_name, lookahead_max)
+    last_r = r[-1] if r else None
+    last_cb = cb[-1] if cb else None
+    last_cm = cm[-1] if cm else None
+    return last_r, last_cb, last_cm
+
+
 def extract_triplets(
-    df: pd.DataFrame,
-    user_name: str,
-    bot_name: str,
-    macro_name: str = "매크로",
-    lookahead_max: int = 3,
+        df: pd.DataFrame,
+        user_name: str,
+        bot_name: str,
+        macro_name: str = "매크로",
+        lookahead_max: int = 3,
 ) -> Tuple[List[ReplyInfo], List[UserCommand], List[UserCommand]]:
     """
     Input: DataFrame with columns: dt, seq, sender, content
@@ -187,6 +214,51 @@ def extract_triplets(
             continue
 
         cost, gold_after, reward = _extract_cost_gold_reward(content)
+
+        # 0) BUSY (no state change)
+        if RE_BUSY.search(content):
+            replies.append(
+                ReplyInfo(
+                    type=ReplyType.BUSY,
+                    raw_main=content,
+                )
+            )
+            i += 1
+            continue
+
+        # 0) INSUFFICIENT_GOLD (often followed by 1 auxiliary guidance message)
+        if RE_NO_GOLD.search(content):
+            need = None
+            m = RE_NEED_GOLD.search(content)
+            if m:
+                need = _to_int(m.group(1))
+
+            left = None
+            m = RE_LEFT_GOLD.search(content)
+            if m:
+                left = _to_int(m.group(1))
+
+            aux = None
+            # lookahead 1~2: 보통 바로 다음 봇 메시지가 "골드 모으러가기" 안내
+            for j in range(i + 1, min(i + 3, n)):
+                if str(df2.at[j, "sender"]) != bot_name:
+                    break
+                cand = str(df2.at[j, "content"] or "")
+                if RE_GO_EARN_GOLD.search(cand):
+                    aux = cand
+                    break
+
+            replies.append(
+                ReplyInfo(
+                    type=ReplyType.INSUFFICIENT_GOLD,
+                    gold_after=left,
+                    raw_main=content,
+                    raw_aux=aux,
+                )
+            )
+            # aux를 소비하지는 않음(원본 메시지 보존); 다만 이벤트는 1개만 생성
+            i += 1
+            continue
 
         # 1) SELL (single-message event; optional extra bot messages ignored)
         if RE_SELL.search(content):
@@ -319,3 +391,45 @@ def extract_triplets(
         i += 1
 
     return replies, user_bot_cmds, user_macro_cmds
+
+
+@dataclass
+class CurrentState:
+    gold: Optional[int] = None
+    weapon: Optional[WeaponInfo] = None
+
+
+def extract_current_gold_and_weapon(
+    replies: Iterable[ReplyInfo],
+) -> CurrentState:
+    """
+    ReplyInfo 스트림에서 '현재 골드'와 '현재 무기'를 추출한다.
+
+    규칙:
+    - gold: ReplyInfo.gold_after가 None이 아니면 그 값을 현재 골드로 갱신
+      (INSUFFICIENT_GOLD는 gold_after에 남은 골드가 들어오도록 해둔 설계를 가정)
+    - weapon: ReplyInfo.weapon_after(또는 granted_weapon)가 있으면 그 값을 현재 무기로 갱신
+      - 성공/유지/판매/파괴 모두 weapon_after가 세팅되도록 해두면 일관적
+    """
+    st = CurrentState()
+
+    for r in replies:
+        # gold update
+        if r.gold_after is not None:
+            st.gold = r.gold_after
+
+        # weapon update (prefer explicit granted_weapon for break, but weapon_after should already be same)
+        if r.weapon_after is not None:
+            st.weapon = r.weapon_after
+        elif getattr(r, "granted_weapon", None) is not None:
+            st.weapon = r.granted_weapon  # 호환용
+
+    return st
+
+
+def extract_current_gold(replies: Iterable[ReplyInfo]) -> Optional[int]:
+    return extract_current_gold_and_weapon(replies).gold
+
+
+def extract_current_weapon(replies: Iterable[ReplyInfo]) -> Optional[WeaponInfo]:
+    return extract_current_gold_and_weapon(replies).weapon
