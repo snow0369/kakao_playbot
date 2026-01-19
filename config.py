@@ -5,24 +5,30 @@ from pathlib import Path
 CONFIG_FILE = Path("config.local.yaml")
 
 
-def load_config(interactive=True) -> dict:
+def _loader(key: str, input_message: str, interactive: bool = True) -> str:
+    save_flag = False
     try:
         with CONFIG_FILE.open("r", encoding="utf-8") as f:
             cfg = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        save_flag = True
+        cfg = {}
 
-        if "USER_NAME" not in cfg:
-            raise KeyError("USER_NAME")
-
-        return cfg
-
-    except (FileNotFoundError, KeyError):
+    if key not in cfg:
         if not interactive:
-            raise
+            raise KeyError(key)
+        user_name = input(input_message).strip()
+        if not user_name:
+            raise ValueError("USER_NAME cannot be empty")
+        cfg[key] = user_name
+        save_flag = True
 
-        user_name = input("Enter your username: ").strip()
-        cfg = {"USER_NAME": user_name}
-
+    if save_flag:
         with CONFIG_FILE.open("w", encoding="utf-8") as f:
-            yaml.safe_dump(cfg, f, sort_keys=False)
+            yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
 
-        return cfg
+    return cfg[key]
+
+
+def load_username(interactive: bool = True) -> str:
+    return _loader("USER_NAME", "Enter your username: ", interactive)

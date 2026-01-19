@@ -1,5 +1,4 @@
 config.local.yaml
-text/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

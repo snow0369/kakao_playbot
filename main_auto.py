@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 
 from pynput import keyboard
 
-from config import load_config
+from config import load_username
 from interact import StopFlag, start_emergency_listener, calibrate_click, select_all_copy_verified, \
     send_command, wait_for_bot_turn, get_last_sender, refresh_chat_window_safe
 from parse import parse_kakao, extract_triplets, extract_triplets_last, extract_current_weapon, extract_current_gold, \
@@ -13,8 +13,7 @@ from parse import parse_kakao, extract_triplets, extract_triplets_last, extract_
 # =========================
 # Settings
 # =========================
-config = load_config()
-USER_NAME = config["USER_NAME"]
+USER_NAME = load_username()
 BOT_SENDER_NAME = "플레이봇"  # 복사 텍스트에서 [플레이봇] 형태로 나타나는 발화자
 BOT_MENTION_NAME = "플레이봇"  # 멘션 자동완성에서 클릭할 이름(동일하면 그대로)
 
