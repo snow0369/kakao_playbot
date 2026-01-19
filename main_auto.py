@@ -59,7 +59,7 @@ def decide_next_command(weapon: WeaponInfo, gold: int) -> Tuple[Optional[str], s
 
 
 # =========================
-# 메인
+# Main
 # =========================
 def main():
     print("카카오톡 PC 창을 최대화하고 자동화할 대화방을 띄우세요.")

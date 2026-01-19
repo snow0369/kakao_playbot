@@ -28,7 +28,7 @@ def parse_export_format(text: str, prev_seq: int = 0) -> pd.DataFrame:
     msgs = []
 
     for i, m in enumerate(matches):
-        seq = prev_seq + i   # ← 핵심 변경
+        seq = prev_seq + i
 
         start = m.start()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
