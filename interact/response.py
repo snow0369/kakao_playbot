@@ -1,12 +1,15 @@
 import re
 import time
 from typing import Optional
+import sys
 
 import pyperclip
 import pyautogui as pag
 
 from .global_stop import StopFlag
 from utils import _norm
+
+MOD = "command" if sys.platform == "darwin" else "ctrl"
 
 
 # =========================
@@ -32,9 +35,9 @@ def select_all_copy_verified(chat_text_xy,
 
         pag.click(*chat_text_xy)
         time.sleep(0.10)
-        pag.hotkey("ctrl", "a")
+        pag.hotkey(MOD, "a")
         time.sleep(0.10)
-        pag.hotkey("ctrl", "c")
+        pag.hotkey(MOD, "c")
         time.sleep(0.10)
 
         after = _norm(pyperclip.paste())
@@ -68,19 +71,19 @@ def copy_input_text(input_xy, stop_flag: StopFlag, retries: int = 2) -> str:
         time.sleep(0.05)
 
         # Ctrl+A
-        pag.keyDown("ctrl")
+        pag.keyDown(MOD)
         time.sleep(0.02)
         pag.press("a")
         time.sleep(0.02)
-        pag.keyUp("ctrl")
+        pag.keyUp(MOD)
         time.sleep(0.05)
 
         # Ctrl+C
-        pag.keyDown("ctrl")
+        pag.keyDown(MOD)
         time.sleep(0.02)
         pag.press("c")
         time.sleep(0.02)
-        pag.keyUp("ctrl")
+        pag.keyUp(MOD)
         time.sleep(0.10)
 
         txt = (pyperclip.paste() or "").strip()
@@ -121,7 +124,7 @@ def send_command(input_xy,
         # 입력창 포커스 + 기존 입력 지우기(잔여 입력 방지)
         pag.click(*input_xy)
         time.sleep(0.05)
-        pag.hotkey("ctrl", "a")
+        pag.hotkey(MOD, "a")
         time.sleep(0.02)
         pag.press("backspace")
         time.sleep(0.03)
@@ -141,7 +144,7 @@ def send_command(input_xy,
             pag.click(*input_xy)
             time.sleep(0.02)
             pyperclip.copy(" " + command)
-            pag.hotkey("ctrl", "v")
+            pag.hotkey(MOD, "v")
             time.sleep(0.03)
             pag.press("enter")
             return  # 성공 종료
@@ -154,7 +157,7 @@ def send_command(input_xy,
             pag.click(*input_xy)
             time.sleep(0.02)
             pyperclip.copy(" " + command)
-            pag.hotkey("ctrl", "v")
+            pag.hotkey(MOD, "v")
             time.sleep(0.03)
             pag.press("enter")
             return
