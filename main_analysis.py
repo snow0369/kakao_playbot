@@ -72,16 +72,6 @@ def main():
     # 0) Load existing dictionaries (optional; start fresh if missing)
     # -----------------------------
     try:
-        weapon_root_map, start_ts_wr, end_ts_wr = load_dictionary(RawData.WEAPON_ROOT_MAP)
-    except FileNotFoundError:
-        weapon_root_map, start_ts_wr, end_ts_wr = {}, None, None
-
-    try:
-        root_level_index, start_ts_rl, end_ts_rl = load_dictionary(RawData.ROOT_LEVEL_INDEX)
-    except FileNotFoundError:
-        root_level_index, start_ts_rl, end_ts_rl = {}, None, None
-
-    try:
         upgrade_cost, start_ts_uc, end_ts_uc = load_dictionary(RawData.UPGRADE_COST)
     except FileNotFoundError:
         upgrade_cost, start_ts_uc, end_ts_uc = {}, None, None
@@ -97,8 +87,8 @@ def main():
         sell_events, start_ts_se, end_ts_se = {}, None, None
 
     # Merge timestamps from loaded payloads (if present)
-    loaded_starts = [t for t in (start_ts_wr, start_ts_rl, start_ts_uc, start_ts_en, start_ts_se) if t is not None]
-    loaded_ends = [t for t in (end_ts_wr, end_ts_rl, end_ts_uc, end_ts_en, end_ts_se) if t is not None]
+    loaded_starts = [t for t in (start_ts_uc, start_ts_en, start_ts_se) if t is not None]
+    loaded_ends = [t for t in (end_ts_uc, end_ts_en, end_ts_se) if t is not None]
     overall_start = min(loaded_starts) if loaded_starts else None
     overall_end = max(loaded_ends) if loaded_ends else None
 
@@ -151,12 +141,7 @@ def main():
     # -----------------------------
     reply_list, _, _ = extract_triplets(all_chat, USER_NAME, BOT_SENDER_NAME)
 
-    for reply_idx, reply in enumerate(reply_list):
-        update_weapon_root_map(
-            reply,
-            weapon_root_map=weapon_root_map,
-            root_level_index=root_level_index
-        )
+    raise NotImplementedError("Weapon tree should be loaded from the crawled data.")
 
     for reply_idx, reply in enumerate(reply_list):
         add_to_statistics(

@@ -5,11 +5,9 @@ from parse import ReplyInfo, WeaponInfo, ReplyType
 
 # Raw data dictionaries
 class RawData(str, Enum):
-    WEAPON_ROOT_MAP = "weapon_root_map"
     UPGRADE_COST = "upgrade_cost"
     ENHANCE_EVENTS = "enhance_events"
     SELL_EVENTS = "sell_events"
-    ROOT_LEVEL_INDEX = "root_level_index"
 
 
 def update_weapon_root_map(
