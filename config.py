@@ -32,3 +32,11 @@ def _loader(key: str, input_message: str, interactive: bool = True) -> str:
 
 def load_username(interactive: bool = True) -> str:
     return _loader("USER_NAME", "Enter your username: ", interactive)
+
+
+def load_botuserkey(interactive: bool = True) -> str:
+    return _loader("BOT_USER_KEY", "Enter the bot user key in the crawlbook crawlbook: ", interactive)
+
+
+def load_botgroupkey(interactive: bool = True) -> str:
+    return _loader("BOT_GROUP_KEY", "Enter the bot group key in the crawlbook crawlbook: ", interactive)

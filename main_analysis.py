@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import Path
 from typing import List
@@ -6,7 +7,7 @@ import pandas as pd
 
 from config import load_username
 from parse import parse_kakao, extract_triplets
-from statistics import load_dictionary, RawData, add_to_statistics, save_dictionary
+from statistics import load_dictionary, RawData, add_to_statistics, save_dictionary, update_weapon_root_map
 
 # =========================
 # Settings
@@ -16,7 +17,7 @@ USER_NAME = load_username()
 BOT_SENDER_NAME = "플레이봇"  # 복사 텍스트에서 [플레이봇] 형태로 나타나는 발화자
 
 FILENAME_RE = re.compile(
-    r"^Talk_(\d{4}\.\d{1,2}\.\d{1,2}\s+\d{1,2}:\d{2})-(\d+)\.txt$"
+    r"^Talk_(\d{4}\.\d{1,2}\.\d{1,2}\s+\d{1,2}_\d{2})-(\d+)\.txt$"
 )
 
 
@@ -56,7 +57,7 @@ def collect_and_validate_files() -> List[str]:
     # Sort by sequence number
     records.sort(key=lambda x: x[1])
 
-    return [name for _, _, name in records]
+    return [os.path.join(PATH_EXPORTED_CHAT, name) for _, _, name in records]
 
 
 # =========================
@@ -76,6 +77,11 @@ def main():
         weapon_root_map, start_ts_wr, end_ts_wr = {}, None, None
 
     try:
+        root_level_index, start_ts_rl, end_ts_rl = load_dictionary(RawData.ROOT_LEVEL_INDEX)
+    except FileNotFoundError:
+        root_level_index, start_ts_rl, end_ts_rl = {}, None, None
+
+    try:
         upgrade_cost, start_ts_uc, end_ts_uc = load_dictionary(RawData.UPGRADE_COST)
     except FileNotFoundError:
         upgrade_cost, start_ts_uc, end_ts_uc = {}, None, None
@@ -91,8 +97,8 @@ def main():
         sell_events, start_ts_se, end_ts_se = {}, None, None
 
     # Merge timestamps from loaded payloads (if present)
-    loaded_starts = [t for t in (start_ts_wr, start_ts_uc, start_ts_en, start_ts_se) if t is not None]
-    loaded_ends = [t for t in (end_ts_wr, end_ts_uc, end_ts_en, end_ts_se) if t is not None]
+    loaded_starts = [t for t in (start_ts_wr, start_ts_rl, start_ts_uc, start_ts_en, start_ts_se) if t is not None]
+    loaded_ends = [t for t in (end_ts_wr, end_ts_rl, end_ts_uc, end_ts_en, end_ts_se) if t is not None]
     overall_start = min(loaded_starts) if loaded_starts else None
     overall_end = max(loaded_ends) if loaded_ends else None
 
@@ -145,10 +151,18 @@ def main():
     # -----------------------------
     reply_list, _, _ = extract_triplets(all_chat, USER_NAME, BOT_SENDER_NAME)
 
-    for reply in reply_list:
+    for reply_idx, reply in enumerate(reply_list):
+        update_weapon_root_map(
+            reply,
+            weapon_root_map=weapon_root_map,
+            root_level_index=root_level_index
+        )
+
+    for reply_idx, reply in enumerate(reply_list):
         add_to_statistics(
             reply,
             weapon_root_map=weapon_root_map,
+            root_level_index=root_level_index,
             upgrade_cost=upgrade_cost,
             enhance_events=enhance_events,
             sell_events=sell_events,
@@ -157,9 +171,12 @@ def main():
     # -----------------------------
     # 3) Save updated dictionaries with merged timestamps
     # -----------------------------
-    save_dictionary(RawData.WEAPON_ROOT_MAP, weapon_root_map, overall_start, overall_end)
     save_dictionary(RawData.UPGRADE_COST, upgrade_cost, overall_start, overall_end)
     save_dictionary(RawData.ENHANCE_EVENTS, enhance_events, overall_start, overall_end)
     save_dictionary(RawData.SELL_EVENTS, sell_events, overall_start, overall_end)
 
-    return weapon_root_map, upgrade_cost, enhance_events, sell_events, overall_start, overall_end
+    return upgrade_cost, enhance_events, sell_events, overall_start, overall_end
+
+
+if __name__ == "__main__":
+    main()

@@ -6,6 +6,7 @@ import re
 
 from utils import _to_int
 from .types import ReplyInfo, ReplyType, WeaponInfo, UserCommand, UserCommandTarget, MacroAction
+from .known_errors import KNOWN_WEAPON_MISMATCH
 
 # TODO: add run out of money
 
@@ -268,6 +269,11 @@ def extract_triplets(
             weapon_before = sold_weapon or st.current_weapon
             weapon_after = new_weapon  # often [+0] 낡은 검
 
+            if weapon_before in KNOWN_WEAPON_MISMATCH:
+                weapon_before = KNOWN_WEAPON_MISMATCH[weapon_before]
+            if weapon_after in KNOWN_WEAPON_MISMATCH:
+                weapon_after = KNOWN_WEAPON_MISMATCH[weapon_after]
+
             # update state if new weapon known
             if weapon_after:
                 st.current_weapon = weapon_after
@@ -302,6 +308,8 @@ def extract_triplets(
                 weapon_before = st.current_weapon
 
             weapon_after = after_weapon
+            if weapon_after in KNOWN_WEAPON_MISMATCH:
+                weapon_after = KNOWN_WEAPON_MISMATCH[weapon_after]
 
             # state update는 after_weapon으로만 수행
             st.current_weapon = weapon_after
@@ -323,6 +331,9 @@ def extract_triplets(
         if RE_KEEP.search(content):
             keep_weapon = _parse_weapon_from_keep_line(content)
 
+            if keep_weapon in KNOWN_WEAPON_MISMATCH:
+                keep_weapon = KNOWN_WEAPON_MISMATCH[keep_weapon]
+
             # 유지 이벤트는 현재 무기가 그대로. state를 keep_weapon로 동기화(있으면).
             if keep_weapon:
                 st.current_weapon = keep_weapon
@@ -332,8 +343,8 @@ def extract_triplets(
                     type=ReplyType.ENHANCE_KEEP,
                     gold_after=gold_after,
                     cost=cost,
-                    weapon_before=st.current_weapon,  # 동기화 이후라 before/after 같음
-                    weapon_after=st.current_weapon,
+                    weapon_before=keep_weapon,  # 동기화 이후라 before/after 같음
+                    weapon_after=keep_weapon,
                     raw_main=content,
                 )
             )
@@ -362,6 +373,10 @@ def extract_triplets(
                 continue
 
             broken_weapon, granted_weapon = broken_granted
+            if broken_weapon in KNOWN_WEAPON_MISMATCH:
+                broken_weapon = KNOWN_WEAPON_MISMATCH[broken_weapon]
+            if granted_weapon in KNOWN_WEAPON_MISMATCH:
+                granted_weapon = KNOWN_WEAPON_MISMATCH[granted_weapon]
 
             # weapon_before/after: state 기반 + notice 기반을 조합
             # notice가 가장 신뢰할 수 있으므로 broken/granted를 그대로 사용
