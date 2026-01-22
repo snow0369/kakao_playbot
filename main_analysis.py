@@ -5,16 +5,25 @@ from typing import List
 
 import pandas as pd
 
-from config import load_username
-from parse import parse_kakao, extract_triplets
-from statistics import load_dictionary, RawData, add_to_statistics, save_dictionary, update_weapon_root_map
+from config import load_username, load_botuserkey, load_botgroupkey
+from playbot.parse import parse_kakao, extract_triplets, make_reload_cb, WeaponIdPolicy, assign_weapon_ids
+from playbot.statistics import load_dictionary, RawData, add_to_statistics, save_dictionary
 
 # =========================
 # Settings
 # =========================
+from playbot.weaponbook import load_saved_hierarchies
+
 PATH_EXPORTED_CHAT = "chat_log/"
+WEAPON_TREE_DIR = "data/weapon_trees"
+
 USER_NAME = load_username()
 BOT_SENDER_NAME = "플레이봇"  # 복사 텍스트에서 [플레이봇] 형태로 나타나는 발화자
+BOT_USER_KEY = load_botuserkey()
+BOT_GROUP_KEY = load_botgroupkey()
+
+WB_OUT_DIR = "data/weapon_trees/"
+
 
 FILENAME_RE = re.compile(
     r"^Talk_(\d{4}\.\d{1,2}\.\d{1,2}\s+\d{1,2}_\d{2})-(\d+)\.txt$"
@@ -136,18 +145,41 @@ def main():
     overall_start = run_start if overall_start is None else min(overall_start, run_start)
     overall_end = run_end if overall_end is None else max(overall_end, run_end)
 
+    # Load weapon book
+    weapon_book = load_saved_hierarchies(WEAPON_TREE_DIR)
+
     # -----------------------------
     # 2) Extract replies and update statistics
     # -----------------------------
     reply_list, _, _ = extract_triplets(all_chat, USER_NAME, BOT_SENDER_NAME)
 
-    raise NotImplementedError("Weapon tree should be loaded from the crawled data.")
+    # infer id
+    reload_fn = make_reload_cb(
+        bot_user_key=BOT_USER_KEY,
+        bot_group_key=BOT_GROUP_KEY,
+        tree_out_dir=WB_OUT_DIR,
+        cache=weapon_book
+    )
+
+    infer_policy = WeaponIdPolicy(
+        mode="batch",
+        enable_reload=False,
+        reload_on_missing_key=False,
+        reload_on_termination_then_missing=True,
+    )
+
+    reply_list = assign_weapon_ids(
+        replies=reply_list,
+        book=weapon_book,
+        previous_weapon_id=None,
+        reload_weapon_book=reload_fn,
+        policy=infer_policy
+    )
 
     for reply_idx, reply in enumerate(reply_list):
         add_to_statistics(
             reply,
-            weapon_root_map=weapon_root_map,
-            root_level_index=root_level_index,
+            weapon_book=weapon_book,
             upgrade_cost=upgrade_cost,
             enhance_events=enhance_events,
             sell_events=sell_events,

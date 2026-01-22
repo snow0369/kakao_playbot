@@ -4,9 +4,9 @@ from typing import Optional, Tuple
 from pynput import keyboard
 
 from config import load_username
-from interact import StopFlag, start_emergency_listener, calibrate_click, select_all_copy_verified, \
+from playbot.interact import StopFlag, start_emergency_listener, calibrate_click, select_all_copy_verified, \
     send_command, wait_for_bot_turn, get_last_sender, refresh_chat_window_safe
-from parse import parse_kakao, extract_triplets, extract_triplets_last, extract_current_weapon, extract_current_gold, \
+from playbot.parse import parse_kakao, extract_triplets, extract_triplets_last, extract_current_weapon, extract_current_gold, \
     WeaponInfo
 
 
