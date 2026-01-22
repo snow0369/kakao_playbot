@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple, List, Optional
 from pathlib import Path
+from typing import Dict, Tuple, List, Optional
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
-from playbot.types import WeaponInfo, ReplyType  # adjust import paths to your project
+from playbot.types import ReplyType, WeaponInfo, TimestampT  # adjust import paths to your project
+from playbot.weaponbook import WeaponBook
 
 
 def export_root_level_enhance_stats_xlsx(
     out_xlsx: str | Path,
-    weapon_root_map: Dict[str, Tuple[WeaponInfo, WeaponInfo]],
-    enhance_events: Dict[str, Dict[ReplyType, List[int]]],
+    weapon_book: WeaponBook,
+    enhance_events: Dict[WeaponInfo, Dict[ReplyType, List[Tuple[int, TimestampT]]]],
+    sell_events: Dict[WeaponInfo, List[Tuple[int, TimestampT]]],
     *,
     max_level: Optional[int] = None,
 ) -> None:

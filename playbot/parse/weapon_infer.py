@@ -1,5 +1,7 @@
+from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import datetime
+from pathlib import Path
 from typing import Literal, Union, Set, Dict, Tuple, Callable, Optional, List
 
 from playbot.types import ReplyType, WeaponInfo, ReplyInfo
@@ -367,7 +369,139 @@ def assign_weapon_ids(
         last_after = new_after if new_after is not None else r.weapon_after
         terminated_prev = False
 
+    ###### Summary #######
+    total = len(out)
+
+    type_counter = Counter(r.type for r in out)
+
+    success_cnt = type_counter.get(ReplyType.ENHANCE_SUCCESS, 0)
+    keep_cnt    = type_counter.get(ReplyType.ENHANCE_KEEP, 0)
+    break_cnt   = type_counter.get(ReplyType.ENHANCE_BREAK, 0)
+    sell_cnt    = type_counter.get(ReplyType.SELL, 0)
+
+    considered_types = {
+        ReplyType.ENHANCE_SUCCESS,
+        ReplyType.ENHANCE_KEEP,
+        ReplyType.ENHANCE_BREAK,
+        ReplyType.SELL,
+    }
+
+    considered_cnt = 0
+    resolved_cnt = 0
+    unresolved_cnt = 0
+
+    for r in out:
+        if r.type not in considered_types:
+            continue
+
+        considered_cnt += 1
+
+        wb = r.weapon_before
+        wa = r.weapon_after
+
+        has_any_id = (
+            (wb is not None and wb.id is not None)
+            or (wa is not None and wa.id is not None)
+        )
+
+        if has_any_id:
+            resolved_cnt += 1
+        else:
+            unresolved_cnt += 1
+
+    print("===== assign_weapon_ids summary =====")
+    print(f"total replies            : {total}")
+    print(f"  enhance_success        : {success_cnt}")
+    print(f"  enhance_keep           : {keep_cnt}")
+    print(f"  enhance_break          : {break_cnt}")
+    print(f"  sell                   : {sell_cnt}")
+    print("-------------------------------------")
+    print(f"considered (ENHANCE/SELL): {considered_cnt}")
+    print(f"resolved replies         : {resolved_cnt}")
+    print(f"unresolved replies       : {unresolved_cnt}")
+    print("=====================================")
+
     return out
+
+
+def save_unresolved_replies_log(
+    out: List[ReplyInfo],
+    log_path: str,
+    *,
+    include_header: bool = True,
+) -> int:
+    """
+    unresolved replies를 로그 파일로 저장한다.
+
+    unresolved 정의(수정):
+      - type이 ENHANCE_* 또는 SELL 인 reply만 고려
+      - 그 중 weapon_before/after 둘 다 없거나, 둘 다 id가 None이면 unresolved
+    """
+    p = Path(log_path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+
+    enhance_sell_types = {
+        ReplyType.ENHANCE_SUCCESS,
+        ReplyType.ENHANCE_KEEP,
+        ReplyType.ENHANCE_BREAK,
+        ReplyType.SELL,
+    }
+
+    def _fmt_ts(ts: Optional[object]) -> str:
+        if ts is None:
+            return "-"
+        if isinstance(ts, datetime):
+            return ts.isoformat(sep=" ", timespec="seconds")
+        return str(ts)
+
+    def _fmt_weapon(w: Optional[WeaponInfo]) -> str:
+        if w is None:
+            return "-"
+        return f"[+{w.level}] {w.name} (id={w.id})"
+
+    unresolved_idx = []
+    for i, r in enumerate(out):
+        if r.type not in enhance_sell_types:
+            continue  # BUSY/INSUFFICIENT_GOLD 등은 고려하지 않음
+
+        wb = r.weapon_before
+        wa = r.weapon_after
+
+        has_any_weapon = (wb is not None) or (wa is not None)
+        has_any_id = ((wb is not None and wb.id is not None) or (wa is not None and wa.id is not None))
+
+        if (not has_any_weapon) or (not has_any_id):
+            unresolved_idx.append(i)
+
+    with p.open("w", encoding="utf-8") as f:
+        if include_header:
+            f.write("===== unresolved replies log =====\n")
+            f.write(f"generated_at: {datetime.now().isoformat(sep=' ', timespec='seconds')}\n")
+            f.write(f"total_out: {len(out)}\n")
+            f.write(f"considered_types: {sorted(t.value for t in enhance_sell_types)}\n")
+            f.write(f"unresolved_count: {len(unresolved_idx)}\n")
+            f.write("==================================\n\n")
+
+        for i in unresolved_idx:
+            r = out[i]
+            f.write(f"#{i}\n")
+            f.write(f"  type: {r.type}\n")
+            f.write(f"  timestamp: {_fmt_ts(r.timestamp)}\n")
+            f.write(f"  weapon_before: {_fmt_weapon(r.weapon_before)}\n")
+            f.write(f"  weapon_after : {_fmt_weapon(r.weapon_after)}\n")
+            if r.gold_after is not None:
+                f.write(f"  gold_after: {r.gold_after}\n")
+            if r.cost is not None:
+                f.write(f"  cost: {r.cost}\n")
+            if r.reward is not None:
+                f.write(f"  reward: {r.reward}\n")
+            if r.raw_main:
+                f.write(f"  raw_main: {r.raw_main}\n")
+            if r.raw_aux:
+                f.write(f"  raw_aux : {r.raw_aux}\n")
+            f.write("\n")
+
+    return len(unresolved_idx)
 
 # =========================
 # Usage examples

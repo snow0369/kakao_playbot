@@ -6,7 +6,8 @@ from typing import List
 import pandas as pd
 
 from config import load_username, load_botuserkey, load_botgroupkey
-from playbot.parse import parse_kakao, extract_triplets, make_reload_cb, WeaponIdPolicy, assign_weapon_ids
+from playbot.parse import parse_kakao, extract_triplets, make_reload_cb, WeaponIdPolicy, assign_weapon_ids, \
+    save_unresolved_replies_log
 from playbot.statistics import load_dictionary, RawData, add_to_statistics, save_dictionary
 
 # =========================
@@ -137,6 +138,9 @@ def main():
         mask_dup = (all_chat["dt"] >= s) & (all_chat["dt"] <= e)
         all_chat = all_chat.loc[~mask_dup].copy()
 
+    if all_chat.empty:
+        raise ValueError("Nothing to update.")
+
     # Determine timestamps for this run (Python datetime)
     run_start = all_chat["dt"].iloc[0].to_pydatetime()
     run_end = all_chat["dt"].iloc[-1].to_pydatetime()
@@ -175,6 +179,8 @@ def main():
         reload_weapon_book=reload_fn,
         policy=infer_policy
     )
+
+    save_unresolved_replies_log(reply_list, "unresolved_weapon_id.log")
 
     for reply_idx, reply in enumerate(reply_list):
         add_to_statistics(
