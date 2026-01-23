@@ -8,7 +8,7 @@ import pandas as pd
 from config import load_username, load_botuserkey, load_botgroupkey
 from playbot.parse import parse_kakao, extract_triplets, make_reload_cb, WeaponIdPolicy, assign_weapon_ids, \
     save_unresolved_replies_log
-from playbot.statistics import load_dictionary, RawData, add_to_statistics, save_dictionary
+from playbot.statistics import load_dictionary, RawData, add_to_statistics, save_dictionary, export_enhance_stats_xlsx
 
 # =========================
 # Settings
@@ -17,6 +17,7 @@ from playbot.weaponbook import load_saved_hierarchies
 
 PATH_EXPORTED_CHAT = "chat_log/"
 WEAPON_TREE_DIR = "data/weapon_trees"
+STAT_PATH = "enhance_statistics.xlsx"
 
 USER_NAME = load_username()
 BOT_SENDER_NAME = "플레이봇"  # 복사 텍스트에서 [플레이봇] 형태로 나타나는 발화자
@@ -102,6 +103,9 @@ def main():
     overall_start = min(loaded_starts) if loaded_starts else None
     overall_end = max(loaded_ends) if loaded_ends else None
 
+    # Load weapon book
+    weapon_book = load_saved_hierarchies(WEAPON_TREE_DIR)
+
     # -----------------------------
     # 1) Parse chat files into one DataFrame
     # -----------------------------
@@ -138,65 +142,65 @@ def main():
         mask_dup = (all_chat["dt"] >= s) & (all_chat["dt"] <= e)
         all_chat = all_chat.loc[~mask_dup].copy()
 
-    if all_chat.empty:
-        raise ValueError("Nothing to update.")
+    if not all_chat.empty:
+        # Determine timestamps for this run (Python datetime)
+        run_start = all_chat["dt"].iloc[0].to_pydatetime()
+        run_end = all_chat["dt"].iloc[-1].to_pydatetime()
 
-    # Determine timestamps for this run (Python datetime)
-    run_start = all_chat["dt"].iloc[0].to_pydatetime()
-    run_end = all_chat["dt"].iloc[-1].to_pydatetime()
+        # Update overall time range
+        overall_start = run_start if overall_start is None else min(overall_start, run_start)
+        overall_end = run_end if overall_end is None else max(overall_end, run_end)
 
-    # Update overall time range
-    overall_start = run_start if overall_start is None else min(overall_start, run_start)
-    overall_end = run_end if overall_end is None else max(overall_end, run_end)
+        # -----------------------------
+        # 2) Extract replies and update statistics
+        # -----------------------------
+        reply_list, _, _ = extract_triplets(all_chat, USER_NAME, BOT_SENDER_NAME)
 
-    # Load weapon book
-    weapon_book = load_saved_hierarchies(WEAPON_TREE_DIR)
-
-    # -----------------------------
-    # 2) Extract replies and update statistics
-    # -----------------------------
-    reply_list, _, _ = extract_triplets(all_chat, USER_NAME, BOT_SENDER_NAME)
-
-    # infer id
-    reload_fn = make_reload_cb(
-        bot_user_key=BOT_USER_KEY,
-        bot_group_key=BOT_GROUP_KEY,
-        tree_out_dir=WB_OUT_DIR,
-        cache=weapon_book
-    )
-
-    infer_policy = WeaponIdPolicy(
-        mode="batch",
-        enable_reload=False,
-        reload_on_missing_key=False,
-        reload_on_termination_then_missing=True,
-    )
-
-    reply_list = assign_weapon_ids(
-        replies=reply_list,
-        book=weapon_book,
-        previous_weapon_id=None,
-        reload_weapon_book=reload_fn,
-        policy=infer_policy
-    )
-
-    save_unresolved_replies_log(reply_list, "unresolved_weapon_id.log")
-
-    for reply_idx, reply in enumerate(reply_list):
-        add_to_statistics(
-            reply,
-            weapon_book=weapon_book,
-            upgrade_cost=upgrade_cost,
-            enhance_events=enhance_events,
-            sell_events=sell_events,
+        # infer id
+        reload_fn = make_reload_cb(
+            bot_user_key=BOT_USER_KEY,
+            bot_group_key=BOT_GROUP_KEY,
+            tree_out_dir=WB_OUT_DIR,
+            cache=weapon_book
         )
 
+        infer_policy = WeaponIdPolicy(
+            mode="batch",
+            enable_reload=False,
+            reload_on_missing_key=False,
+            reload_on_termination_then_missing=True,
+        )
+
+        reply_list = assign_weapon_ids(
+            replies=reply_list,
+            book=weapon_book,
+            previous_weapon_id=None,
+            reload_weapon_book=reload_fn,
+            policy=infer_policy
+        )
+
+        save_unresolved_replies_log(reply_list, "unresolved_weapon_id.log")
+
+        for reply_idx, reply in enumerate(reply_list):
+            add_to_statistics(
+                reply,
+                weapon_book=weapon_book,
+                upgrade_cost=upgrade_cost,
+                enhance_events=enhance_events,
+                sell_events=sell_events,
+            )
+
+        # -----------------------------
+        # 3) Save updated dictionaries with merged timestamps
+        # -----------------------------
+        save_dictionary(RawData.UPGRADE_COST, upgrade_cost, overall_start, overall_end)
+        save_dictionary(RawData.ENHANCE_EVENTS, enhance_events, overall_start, overall_end)
+        save_dictionary(RawData.SELL_EVENTS, sell_events, overall_start, overall_end)
+
     # -----------------------------
-    # 3) Save updated dictionaries with merged timestamps
+    # 4) Export to Excel
     # -----------------------------
-    save_dictionary(RawData.UPGRADE_COST, upgrade_cost, overall_start, overall_end)
-    save_dictionary(RawData.ENHANCE_EVENTS, enhance_events, overall_start, overall_end)
-    save_dictionary(RawData.SELL_EVENTS, sell_events, overall_start, overall_end)
+    export_enhance_stats_xlsx(STAT_PATH, weapon_book, enhance_events)
 
     return upgrade_cost, enhance_events, sell_events, overall_start, overall_end
 

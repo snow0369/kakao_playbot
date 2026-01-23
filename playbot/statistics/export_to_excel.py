@@ -11,13 +11,13 @@ from playbot.types import ReplyType, WeaponInfo, TimestampT  # adjust import pat
 from playbot.weaponbook import WeaponBook
 
 
-def export_root_level_enhance_stats_xlsx(
+def export_enhance_stats_xlsx(
     out_xlsx: str | Path,
     weapon_book: WeaponBook,
     enhance_events: Dict[WeaponInfo, Dict[ReplyType, List[Tuple[int, TimestampT]]]],
-    sell_events: Dict[WeaponInfo, List[Tuple[int, TimestampT]]],
+    # sell_events: Dict[WeaponInfo, List[Tuple[int, TimestampT]]],
     *,
-    max_level: Optional[int] = None,
+    max_level: int = 20,
 ) -> None:
     """
     Create an Excel sheet:
@@ -29,32 +29,12 @@ def export_root_level_enhance_stats_xlsx(
 
     Missing data -> '-'
     """
+    # ---- index -----
+    hid_list = sorted(list(weapon_book.hierarchies.keys()))
+    special_hids = weapon_book.special_ids
 
     out_xlsx = Path(out_xlsx)
     out_xlsx.parent.mkdir(parents=True, exist_ok=True)
-
-    # ---- Build indexes: (root_name, level) -> weapon_name ----
-    # weapon_root_map maps weapon_name -> (weapon_info(level), root_info(level=1))
-    root_names = set()
-    root_level_to_weapon: Dict[Tuple[str, int], str] = {}
-
-    inferred_max_level = 0
-    for wname, (wi, root) in weapon_root_map.items():
-        if wi.level <= 0:
-            continue
-        root_names.add(root.name)
-        key = (root.name, wi.level)
-        if key in root_level_to_weapon and root_level_to_weapon[key] != wname:
-            raise ValueError(
-                f"Multiple weapon names for same (root, level) {key}: "
-                f"{root_level_to_weapon[key]} vs {wname}"
-            )
-        root_level_to_weapon[key] = wname
-        inferred_max_level = max(inferred_max_level, wi.level)
-
-    roots_sorted = sorted(root_names)
-    if max_level is None:
-        max_level = inferred_max_level if inferred_max_level > 0 else 1
 
     # ---- Workbook / styles ----
     wb = Workbook()
@@ -87,10 +67,10 @@ def export_root_level_enhance_stats_xlsx(
     c.alignment = align_center
     c.border = border_thin
 
-    for i, root in enumerate(roots_sorted):
+    for i, hid in enumerate(hid_list):
         base = start_col + 4 * i
         # Root header merged across 4 cols
-        ws.cell(row=1, column=base, value=root)
+        ws.cell(row=1, column=base, value=hid)
         ws.merge_cells(start_row=1, start_column=base, end_row=1, end_column=base + 3)
         for col in range(base, base + 4):
             cell = ws.cell(row=1, column=col)
@@ -126,17 +106,17 @@ def export_root_level_enhance_stats_xlsx(
         for rr in range(r, r + 3):
             ws.cell(row=rr, column=LEVEL_COL).border = border_thin
 
-        for i, root in enumerate(roots_sorted):
+        for i, hid in enumerate(hid_list):
             base = start_col + 4 * i
-            wname = root_level_to_weapon.get((root, lv))
-
+            wnode = weapon_book.hierarchies[hid]["by_level"].get(lv, None)
+            wname = wnode["name"] if wnode is not None else None
             # Pull counts from enhance_events by weapon name (before name)
             if wname is None:
                 weapon_display = "-"
                 k = s = b = tot = None
             else:
-                weapon_display = wname
-                ev = enhance_events.get(wname)
+                weapon_display = wname if hid not in special_hids else "[특수] "+wname
+                ev = enhance_events.get(WeaponInfo(name=wname, level=lv, id=hid))
                 if not ev:
                     k = s = b = tot = 0
                 else:
@@ -185,7 +165,7 @@ def export_root_level_enhance_stats_xlsx(
 
     # ---- Column widths ----
     ws.column_dimensions[get_column_letter(LEVEL_COL)].width = 8
-    for i in range(len(roots_sorted)):
+    for i in range(len(hid_list)):
         base = start_col + 4 * i
         ws.column_dimensions[get_column_letter(base)].width = 18  # Keep
         ws.column_dimensions[get_column_letter(base + 1)].width = 18  # Success

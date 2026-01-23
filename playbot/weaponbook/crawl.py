@@ -218,7 +218,7 @@ def crawl_all_hierarchies_by_clicking(
             "id": hid,
             "special": is_special,
             "nodes": [asdict(n) for n in ordered_nodes],
-            "by_level": {str(lv): asdict(wi) for lv, wi in by_level.items()},
+            "by_level": {lv: asdict(wi) for lv, wi in by_level.items()},
         }
 
         # Update (name, level) appearance map for duplicate detection across trees

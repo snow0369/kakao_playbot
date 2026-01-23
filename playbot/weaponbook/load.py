@@ -59,6 +59,10 @@ def load_saved_hierarchies(
         # Track special
         if bool(data["special"]):
             special_ids.add(hid_int)
+        new_bylevel = dict()
+        for k, v in data["by_level"].items():
+            new_bylevel[int(k)] = v
+        data["by_level"] = new_bylevel
 
         # Build appearance map: (name, level) -> set(hid)
         for n in nodes:
