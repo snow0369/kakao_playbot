@@ -3,22 +3,29 @@ from typing import Optional, Tuple
 
 from pynput import keyboard
 
-from config import load_username
+from config import load_username, load_botgroupkey, load_botuserkey
 from playbot.interact import StopFlag, start_emergency_listener, calibrate_click, select_all_copy_verified, \
     send_command, wait_for_bot_turn, get_last_sender, refresh_chat_window_safe
-from playbot.parse import parse_kakao, extract_triplets, extract_triplets_last, extract_current_weapon, extract_current_gold, \
-    WeaponInfo
-
+from playbot.parse import parse_kakao, extract_triplets, extract_triplets_last, extract_current_weapon, \
+    extract_current_gold, make_reload_cb, WeaponIdPolicy, assign_weapon_ids
 
 # =========================
 # Settings
 # =========================
+from playbot.statistics import load_dictionary, RawData, build_count_tables
+from playbot.strategy.strategy import build_sell_tables, optimal_strategy_for_weapon
+from playbot.types import WeaponInfo
+from playbot.weaponbook import load_saved_hierarchies
+
 USER_NAME = load_username()
 BOT_SENDER_NAME = "플레이봇"  # 복사 텍스트에서 [플레이봇] 형태로 나타나는 발화자
 BOT_MENTION_NAME = "플레이봇"  # 멘션 자동완성에서 클릭할 이름(동일하면 그대로)
 
 COMMAND_ENHANCE = "강화"
 COMMAND_SELL = "판매"
+
+BOT_USER_KEY = load_botuserkey()
+BOT_GROUP_KEY = load_botgroupkey()
 
 # 비상탈출 키
 EXIT_KEY = keyboard.Key.f12
@@ -27,11 +34,15 @@ STOP = StopFlag(EXIT_KEY)
 # 채팅방 재오픈
 REFRESH_EVERY = 1000
 
+# Decision by statistics
+USE_STATISTICS = True
+WEAPON_TREE_DIR = "data/weapon_trees"
+
 
 # =========================
 # 의사결정 로직
 # =========================
-def decide_next_command(weapon: WeaponInfo, gold: int) -> Tuple[Optional[str], str]:
+def decide_next_command(weapon: WeaponInfo, gold: int, **kwargs) -> Tuple[Optional[str], str]:
     level = weapon.level
     # if level >= 20:
     #     return None, f"종료: 레벨 {level} >= 20"
@@ -51,17 +62,79 @@ def decide_next_command(weapon: WeaponInfo, gold: int) -> Tuple[Optional[str], s
 
     if level >= 18:
         return COMMAND_SELL, f"레벨 {level} >= 18 → 판매"
+    if USE_STATISTICS:
+        # Confidence thresholds (tune as needed)
+        MIN_N = 200
+        MAX_BREAK_ERR = 0.02  # Wilson 95% CI half-width for BREAK
 
-    threshold = threshold_table[level]
-    if gold < threshold:
-        return COMMAND_SELL, f"레벨 {level}, 골드 {gold:,} < 판매 기준 {threshold:,} → 판매"
-    return COMMAND_ENHANCE, f"레벨 {level}, 골드 {gold:,} ≥ 판매 기준 {threshold:,} → 강화"
+        decisions = optimal_strategy_for_weapon(
+            start_level=level,
+            weapon_id=weapon.id,
+            special_ids=kwargs["special_set"],
+
+            # NEW: counts for hierarchical backoff
+            idlvl_cnt=kwargs["idlvl_cnt"],
+            grplvl_cnt=kwargs["grplvl_cnt"],
+            lvl_cnt=kwargs["lvl_cnt"],
+
+            # SELL stats
+            sell_idlvl=kwargs["sell_idlvl"],
+            sell_grplvl=kwargs["sell_grplvl"],
+            sell_lvl=kwargs["sell_lvl"],
+
+            min_n=MIN_N,
+            max_break_err=MAX_BREAK_ERR,
+
+            max_level=18,
+        )
+
+        d = decisions.get(level)
+        if d is None:
+            # 통계 계산 실패 시 안전한 fallback
+            return COMMAND_SELL, f"레벨 {level}: 통계 부족 → 안전 판매"
+
+        if d.action == "ENHANCE":
+            return (
+                COMMAND_ENHANCE,
+                (
+                    f"[통계] 레벨 {level} → 강화 "
+                    f"(E[강화]={d.V_enh:,.0f}, E[판매]={d.S:,.0f}, "
+                    f"p_b={d.pb:.3f}, n={d.n_prob})"
+                ),
+            )
+        else:
+            return (
+                COMMAND_SELL,
+                (
+                    f"[통계] 레벨 {level} → 판매 "
+                    f"(E[판매]={d.S:,.0f} ≥ E[강화]={d.V_enh:,.0f}, "
+                    f"p_b={d.pb:.3f}, n={d.n_prob})"
+                ),
+            )
+    else:
+        threshold = threshold_table[level]
+        if gold < threshold:
+            return COMMAND_SELL, f"레벨 {level}, 골드 {gold:,} < 판매 기준 {threshold:,} → 판매"
+        return COMMAND_ENHANCE, f"레벨 {level}, 골드 {gold:,} ≥ 판매 기준 {threshold:,} → 강화"
 
 
 # =========================
 # Main
 # =========================
 def main():
+    if USE_STATISTICS:
+        weapon_book = load_saved_hierarchies(WEAPON_TREE_DIR)
+        special_set = set(weapon_book.special_ids)
+        enhance_events, start_ts_en, end_ts_en = load_dictionary(RawData.ENHANCE_EVENTS)
+        sell_events, start_ts_se, end_ts_se = load_dictionary(RawData.SELL_EVENTS)
+        idlvl_cnt, grplvl_cnt, lvl_cnt = build_count_tables(enhance_events, special_ids=special_set)
+        sell_idlvl, sell_grplvl, sell_lvl = build_sell_tables(sell_events, special_ids=special_set)
+    else:
+        weapon_book, special_set = None, None
+        enhance_events, sell_events = None, None
+        idlvl_cnt, grplvl_cnt, lvl_cnt = None, None, None
+        sell_idlvl, sell_grplvl, sell_lvl = None, None, None
+
     print("카카오톡 PC 창을 최대화하고 자동화할 대화방을 띄우세요.")
     print(f"비상 종료: {str(EXIT_KEY)} (전역), 또는 마우스를 좌상단으로 이동(pyautogui failsafe)\n")
 
@@ -108,7 +181,32 @@ def main():
 
         # 3) 결과 블록 파싱
         block = parse_kakao(full)
-        reply, _, usercomm = extract_triplets_last(block, USER_NAME, BOT_SENDER_NAME)
+        reply_list, _, usercomm_list = extract_triplets(block, USER_NAME, BOT_SENDER_NAME)
+
+        if USE_STATISTICS:
+            reload_fn = make_reload_cb(
+                bot_user_key=BOT_USER_KEY,
+                bot_group_key=BOT_GROUP_KEY,
+                tree_out_dir=WEAPON_TREE_DIR,
+                cache=weapon_book
+            )
+
+            infer_policy = WeaponIdPolicy(
+                mode="online",
+                enable_reload=True,
+                reload_on_missing_key=True,
+                reload_on_termination_then_missing=False,
+            )
+
+            reply_list = assign_weapon_ids(
+                replies=reply_list,
+                book=weapon_book,
+                previous_weapon_id=current_weapon.id,
+                reload_weapon_book=reload_fn,
+                policy=infer_policy
+            )
+
+        reply = reply_list[-1]
 
         # 4) busy면 패스
         if reply.type == "busy":
@@ -131,7 +229,11 @@ def main():
         if reply.type == "insufficient_gold":
             next_cmd, reason = COMMAND_SELL, "골드 부족 → 판매"
         else:
-            next_cmd, reason = decide_next_command(current_weapon, current_gold)
+            next_cmd, reason = decide_next_command(current_weapon, current_gold,
+                                                   special_set=special_set, idlvl_cnt=idlvl_cnt,
+                                                   grplvl_cnt=grplvl_cnt, lvl_cnt=lvl_cnt,
+                                                   sell_idlvl=sell_idlvl, sell_grplvl= sell_grplvl,
+                                                   sell_lvl=sell_lvl)
         print(f"[결정] {reason}")
 
         if next_cmd is None:
