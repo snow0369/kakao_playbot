@@ -3,6 +3,8 @@ import os
 from dataclasses import dataclass
 from typing import Dict, Set, Tuple, Any, Union
 
+from playbot.types import WeaponInfo
+
 
 @dataclass
 class WeaponBook:
@@ -61,7 +63,7 @@ def load_saved_hierarchies(
             special_ids.add(hid_int)
         new_bylevel = dict()
         for k, v in data["by_level"].items():
-            new_bylevel[int(k)] = v
+            new_bylevel[int(k)] = WeaponInfo(**v)
         data["by_level"] = new_bylevel
 
         # Build appearance map: (name, level) -> set(hid)

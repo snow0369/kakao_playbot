@@ -109,7 +109,7 @@ def export_enhance_stats_xlsx(
         for i, hid in enumerate(hid_list):
             base = start_col + 4 * i
             wnode = weapon_book.hierarchies[hid]["by_level"].get(lv, None)
-            wname = wnode["name"] if wnode is not None else None
+            wname = wnode.name if wnode is not None else None
             # Pull counts from enhance_events by weapon name (before name)
             if wname is None:
                 weapon_display = "-"
