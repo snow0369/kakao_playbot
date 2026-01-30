@@ -1,23 +1,8 @@
-from enum import Enum
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Optional
 
-from playbot.types import ReplyInfo, WeaponInfo, ReplyType, TimestampT
+from playbot.types import ReplyInfo, WeaponInfo, ReplyType, EnhanceEvents, SellEvents
 from playbot.weaponbook import WeaponBook
 
-
-# Raw data dictionaries
-class RawData(str, Enum):
-    UPGRADE_COST = "upgrade_cost"
-    ENHANCE_EVENTS = "enhance_events"
-    SELL_EVENTS = "sell_events"
-
-
-EnhanceEvents = Dict[WeaponInfo, Dict[ReplyType, List[Tuple[int, TimestampT]]]]
-# before weapon name -> ReplyType -> list[before_gold, timestamp]
-SellEvents = Dict[WeaponInfo, List[Tuple[int, TimestampT]]]
-
-
-# before weapon name -> list[sold_gold]
 
 def add_to_statistics(
         reply: ReplyInfo,

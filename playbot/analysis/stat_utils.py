@@ -1,29 +1,7 @@
 import math
-from dataclasses import dataclass
 from typing import Tuple
 
-
-@dataclass(frozen=True)
-class EnhanceCounts:
-    n: int
-    k_success: int
-    k_keep: int
-    k_break: int
-
-
-@dataclass(frozen=True)
-class EnhanceProbs:
-    ps: float
-    pk: float
-    pb: float
-    n: int
-
-
-@dataclass(frozen=True)
-class SellStats:
-    mean: float
-    std: float
-    n: int
+from playbot.types import EnhanceCounts, EnhanceProbs
 
 
 def wilson_ci(k: int, n: int, z: float = 1.96) -> Tuple[float, float]:
@@ -60,5 +38,3 @@ def counts_to_probs(cnt: EnhanceCounts) -> EnhanceProbs:
         pb=cnt.k_break / cnt.n,
         n=cnt.n,
     )
-
-

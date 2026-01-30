@@ -2,15 +2,10 @@ import math
 from collections import defaultdict
 from typing import Dict, Set, Tuple, List
 
-import matplotlib
-matplotlib.use("Agg")
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 
-from .stat_utils import wilson_ci
 from playbot.types import WeaponInfo, ReplyType
+from .stat_utils import wilson_ci
 
 
 def compute_probs_by_weapon_id(
@@ -150,62 +145,6 @@ def compute_level_group_stats(
             stats[lvl][group] = row
 
     return stats
-
-
-def plot_weapon_id_pca(prob_by_id: dict):
-    """
-    prob_by_id:
-      { id: {ReplyType.SUCCESS: p_s, KEEP: p_k, BREAK: p_b} }
-    """
-    ids = []
-    X = []
-
-    for wid, p in prob_by_id.items():
-        if ReplyType.ENHANCE_BREAK not in p:
-            continue
-        ids.append(wid)
-        X.append([
-            p.get(ReplyType.ENHANCE_SUCCESS, 0.0),
-            p.get(ReplyType.ENHANCE_KEEP, 0.0),
-            p.get(ReplyType.ENHANCE_BREAK, 0.0),
-        ])
-
-    X = np.array(X)
-
-    Z = PCA(n_components=2).fit_transform(X)
-
-    plt.figure(figsize=(7, 6))
-    sc = plt.scatter(Z[:, 0], Z[:, 1], c=X[:, 2], cmap="Reds", s=40)
-    plt.colorbar(sc, label="P(BREAK)")
-    plt.xlabel("PC1")
-    plt.ylabel("PC2")
-    plt.title("Weapon ID enhancement behavior (PCA)")
-    plt.show()
-
-
-def plot_weapon_prob_heatmap(prob_by_id: dict, top_n=None):
-    rows = []
-    for wid, p in prob_by_id.items():
-        rows.append({
-            "id": wid,
-            "SUCCESS": p.get(ReplyType.ENHANCE_SUCCESS, 0.0),
-            "KEEP": p.get(ReplyType.ENHANCE_KEEP, 0.0),
-            "BREAK": p.get(ReplyType.ENHANCE_BREAK, 0.0),
-        })
-
-    df = pd.DataFrame(rows).set_index("id")
-    df = df.sort_values("BREAK", ascending=False)
-
-    if top_n:
-        df = df.head(top_n)
-
-    plt.figure(figsize=(6, max(6, 0.25 * len(df))))
-    plt.imshow(df.values, aspect="auto", cmap="viridis")
-    plt.colorbar(label="Probability")
-    plt.yticks(range(len(df)), df.index)
-    plt.xticks(range(3), df.columns)
-    plt.title("Enhancement probabilities by weapon id")
-    plt.show()
 
 
 def summarize_weapon_risk(prob_by_id, top_k=10):

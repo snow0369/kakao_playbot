@@ -5,8 +5,8 @@ from typing import Dict, List, Optional, Set, Tuple, Any
 from collections import defaultdict
 import math
 
-from playbot.statistics import EnhanceProbs, SellStats, select_probs_with_backoff, EnhanceCounts
-from playbot.types import ReplyType, WeaponInfo
+from playbot.analysis import select_probs_with_backoff
+from playbot.types import ReplyType, WeaponInfo, EnhanceCounts, EnhanceProbs, SellStats
 
 # Reuse your enums / dataclasses
 # ReplyType, WeaponInfo assumed defined as in your project
@@ -40,6 +40,7 @@ UPGRADE_COST_BY_LEVEL = {
 OUTCOMES = (ReplyType.ENHANCE_SUCCESS, ReplyType.ENHANCE_KEEP, ReplyType.ENHANCE_BREAK)
 
 
+#TODO: Generalize dataclass after building more strategies.
 @dataclass(frozen=True)
 class Decision:
     action: str                  # "SELL" or "ENHANCE"

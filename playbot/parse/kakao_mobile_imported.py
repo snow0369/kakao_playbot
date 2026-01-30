@@ -2,16 +2,16 @@ import re
 import datetime as dt
 import pandas as pd
 
-# ---------- (A) 내보내기(export) 포맷 ----------
+# ---------- (A-1) 내보내기(export) 포맷 ----------
 # 예: 2026. 1. 9. 오전 3:02, 플레이봇 : @사용자 ...
 
-EXPORT_MSG_RE = re.compile(
+MOBILE_EXPORT_MSG_RE = re.compile(
     r"^(\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.)\s*(오전|오후)\s*([0-9]{1,2}:[0-9]{2}),\s*([^:]+)\s*:\s*(.*)$",
     re.M
 )
 
 
-def _parse_export_dt(date_str: str, ampm: str, time_str: str) -> dt.datetime:
+def _parse_mobile_export_dt(date_str: str, ampm: str, time_str: str) -> dt.datetime:
     parts = [p.strip() for p in date_str.replace(".", " ").split() if p.strip()]
     y, m, d = map(int, parts[:3])
     hh, mm = map(int, time_str.split(":"))
@@ -22,9 +22,9 @@ def _parse_export_dt(date_str: str, ampm: str, time_str: str) -> dt.datetime:
     return dt.datetime(y, m, d, hh, mm)
 
 
-def parse_export_format(text: str, prev_seq: int = 0) -> pd.DataFrame:
+def parse_mobile_export_format(text: str, prev_seq: int = 0) -> pd.DataFrame:
     text = text.replace("\r\n", "\n")
-    matches = list(EXPORT_MSG_RE.finditer(text))
+    matches = list(MOBILE_EXPORT_MSG_RE.finditer(text))
     msgs = []
 
     for i, m in enumerate(matches):
@@ -41,7 +41,7 @@ def parse_export_format(text: str, prev_seq: int = 0) -> pd.DataFrame:
         content = (first_line + ("\n" + body if body else "")).strip()
 
         msgs.append({
-            "dt": _parse_export_dt(date_str, ampm, tstr),
+            "dt": _parse_mobile_export_dt(date_str, ampm, tstr),
             "seq": seq,
             "sender": sender,
             "content": content,

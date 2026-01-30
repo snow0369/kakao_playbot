@@ -8,8 +8,6 @@ from playbot.utils import _to_int
 from .known_errors import KNOWN_WEAPON_MISMATCH
 from playbot.types import ReplyInfo, ReplyType, WeaponInfo, UserCommand, UserCommandTarget, MacroAction, TimestampT
 
-# TODO: add run out of money
-
 # =========================
 # Regex / parsing helpers
 # =========================
@@ -134,6 +132,10 @@ def parse_user_command(content: str, timestamp: TimestampT,
         if rest == "재개":
             return UserCommand(target=UserCommandTarget.MACRO, raw=raw, macro_action=MacroAction.RESUME,
                                timestamp=timestamp)
+        if rest == "종료":
+            return UserCommand(target=UserCommandTarget.MACRO, raw=raw, macro_action=MacroAction.EXIT,
+                               timestamp=timestamp)
+
         return UserCommand(target=UserCommandTarget.MACRO, raw=raw, macro_action=None,
                            timestamp=timestamp)
 

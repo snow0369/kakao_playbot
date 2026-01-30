@@ -1,6 +1,6 @@
 import re
 import time
-from typing import Optional
+from typing import Optional, List
 import sys
 
 import pyperclip
@@ -15,34 +15,34 @@ MOD = "command" if sys.platform == "darwin" else "ctrl"
 # =========================
 # Ctrl+A / Ctrl+C 복사 (검증 + 재시도)
 # =========================
-def select_all_copy_verified(chat_text_xy,
+def select_all_copy_verified(chat_text_xy_list,
                              stop_flag: StopFlag,
                              retries: int = 3) -> str:
     """
     채팅 로그의 '텍스트 위'를 클릭 -> Ctrl+A/Ctrl+C -> 클립보드 변화 검증.
     실패하면 재시도.
     """
-    if stop_flag.is_set():
+    if stop_flag.is_stop_set():
         raise SystemExit("키보드 비상 종료")
 
     sentinel = f"__SENTINEL_{time.time()}__"
     pyperclip.copy(sentinel)
     time.sleep(0.10)
+    for chat_text_xy in chat_text_xy_list:
+        for _ in range(retries):
+            if stop_flag.is_stop_set():
+                raise SystemExit("키보드 비상 종료")
 
-    for _ in range(retries):
-        if stop_flag.is_set():
-            raise SystemExit("키보드 비상 종료")
+            pag.click(*chat_text_xy)
+            time.sleep(0.10)
+            pag.hotkey(MOD, "a")
+            time.sleep(0.10)
+            pag.hotkey(MOD, "c")
+            time.sleep(0.10)
 
-        pag.click(*chat_text_xy)
-        time.sleep(0.10)
-        pag.hotkey(MOD, "a")
-        time.sleep(0.10)
-        pag.hotkey(MOD, "c")
-        time.sleep(0.10)
-
-        after = _norm(pyperclip.paste())
-        if after and after != _norm(sentinel) and len(after) > 20:
-            return after
+            after = _norm(pyperclip.paste())
+            if after and after != _norm(sentinel) and len(after) > 20:
+                return after
 
         time.sleep(0.25)
 
@@ -64,7 +64,7 @@ def copy_input_text(input_xy, stop_flag: StopFlag, retries: int = 2) -> str:
     time.sleep(0.02)
 
     for _ in range(retries):
-        if stop_flag.is_set():
+        if stop_flag.is_stop_set():
             raise SystemExit("키보드 비상 종료")
 
         pag.click(*input_xy)
@@ -108,8 +108,10 @@ def send_command(input_xy,
     5) 성공 시 ' command' 붙여넣기 후 Enter
     6) 실패 시 backoff로 재시도
     """
-    if stop_flag.is_set():
+    if stop_flag.is_stop_set():
         raise SystemExit("키보드 비상 종료")
+    if stop_flag.is_pause_set():
+        return
 
     target_token = f"@{bot_name}"
 
@@ -118,8 +120,8 @@ def send_command(input_xy,
     max_attempts = len(delays)
 
     for attempt in range(max_attempts):
-        if stop_flag.is_set():
-            raise SystemExit("F12 비상 종료")
+        if stop_flag.is_stop_set():
+            raise SystemExit("키보드 비상 종료")
 
         # 입력창 포커스 + 기존 입력 지우기(잔여 입력 방지)
         pag.click(*input_xy)
@@ -174,6 +176,25 @@ def send_command(input_xy,
     )
 
 
+def send_log(input_xy, msg, stop_flag: StopFlag):
+    if stop_flag.is_stop_set():
+        raise SystemExit("키보드 비상 종료")
+
+    # 입력창 포커스 + 기존 입력 지우기(잔여 입력 방지)
+    pag.click(*input_xy)
+    time.sleep(0.05)
+    pag.hotkey(MOD, "a")
+    time.sleep(0.02)
+    pag.press("backspace")
+
+    # 입력
+    pyperclip.copy("[로그]\n" + msg)
+    pag.hotkey(MOD, "v")
+    time.sleep(0.03)
+    pag.press("enter")
+    return  # 성공 종료
+
+
 # =========================
 # 마지막 발화자 판별 로직
 # =========================
@@ -197,7 +218,7 @@ def get_last_sender(full_text: str) -> Optional[str]:
 # 핵심 대기 로직: "마지막 발화자가 USER면 계속 대기"
 # =========================
 def wait_for_bot_turn(
-        chat_text_xy,
+        chat_text_xy_list,
         user_name,
         bot_sender_name,
         stop_flag: StopFlag,
@@ -213,10 +234,10 @@ def wait_for_bot_turn(
     last_seen = ""
 
     while time.time() - t0 < timeout_sec:
-        if stop_flag.is_set():
+        if stop_flag.is_stop_set():
             raise SystemExit("키보드 비상 종료")
 
-        full = select_all_copy_verified(chat_text_xy, stop_flag, retries=2)
+        full = select_all_copy_verified(chat_text_xy_list, stop_flag, retries=2)
         last_seen = full
 
         sender = get_last_sender(full)

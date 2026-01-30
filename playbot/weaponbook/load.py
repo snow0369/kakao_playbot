@@ -21,7 +21,7 @@ class WeaponBook:
         self.special_ids = set(special_ids)
 
 
-def load_saved_hierarchies(
+def load_weapon_book(
         out_dir: str = "data/weapon_trees",
 ) -> Union[WeaponBook, Tuple[WeaponBook, Dict[int, dict]]]:
     """

@@ -1,7 +1,9 @@
 import datetime as dt
 import os
 import pickle
-from typing import Any
+from typing import Any, Tuple
+
+from playbot.types import TimestampT
 
 DATA_DIR = "data"
 
@@ -23,7 +25,7 @@ def _ts_from_disk(ts: Any) -> Any:
     return ts
 
 
-def load_dictionary(dict_name: str):
+def load_dictionary(dict_name: str) -> Tuple[dict, TimestampT, TimestampT]:
     fname = os.path.join(DATA_DIR, f"{dict_name}.pkl")
     with open(fname, "rb") as f:
         payload = pickle.load(f)

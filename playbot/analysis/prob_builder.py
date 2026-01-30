@@ -2,8 +2,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Any, Set, Literal, Optional
 
-from .stat_utils import EnhanceCounts, EnhanceProbs, counts_break_halfwidth, counts_to_probs
-from playbot.types import WeaponInfo, ReplyType
+from .stat_utils import counts_break_halfwidth, counts_to_probs
+from playbot.types import WeaponInfo, ReplyType, EnhanceCounts, EnhanceProbs
 
 
 def build_count_tables(

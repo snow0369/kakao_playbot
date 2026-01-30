@@ -3,6 +3,8 @@ chat_log/*
 !chat_log/.gitkeep
 data/*
 !data/.gitkeep
+plots/*
+!plots/.gitkeep
 *.xlsx
 
 ##############################################################

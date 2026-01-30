@@ -13,7 +13,7 @@ def calibrate_click(name: str,
     pos_holder = {"pos": None}
 
     def on_click(x, y, button, pressed):
-        if stop_flag.is_set():
+        if stop_flag.is_stop_set():
             return False
         if pressed:
             pos_holder["pos"] = (int(x), int(y))
@@ -22,13 +22,13 @@ def calibrate_click(name: str,
     t0 = time.time()
     with mouse.Listener(on_click=on_click) as mlistener:
         while mlistener.running:
-            if stop_flag.is_set():
+            if stop_flag.is_stop_set():
                 break
             if time.time() - t0 > timeout_sec:
                 break
             time.sleep(0.01)
 
-    if stop_flag.is_set():
+    if stop_flag.is_stop_set():
         raise SystemExit("키보드 비상 종료")
 
     if pos_holder["pos"] is None:

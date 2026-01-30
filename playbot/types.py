@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, Dict, List, Tuple
 
-import pandas as pd
-
-TimestampT = pd.Timestamp
+TimestampT = datetime.datetime
 
 
 # =========================
@@ -56,6 +55,7 @@ class UserCommandTarget(str, Enum):
 class MacroAction(str, Enum):
     PAUSE = "중지"
     RESUME = "재개"
+    EXIT = "종료"
 
 
 @dataclass(frozen=True)
@@ -68,3 +68,38 @@ class UserCommand:
     macro_action: Optional[MacroAction] = None
 
     timestamp: Optional[TimestampT] = None
+
+
+# Raw data dictionaries
+class RawData(str, Enum):
+    UPGRADE_COST = "upgrade_cost"
+    ENHANCE_EVENTS = "enhance_events"
+    SELL_EVENTS = "sell_events"
+
+# before weapon name -> ReplyType -> list[before_gold, timestamp]
+EnhanceEvents = Dict[WeaponInfo, Dict[ReplyType, List[Tuple[int, TimestampT]]]]
+# before weapon name -> list[sold_gold]
+SellEvents = Dict[WeaponInfo, List[Tuple[int, TimestampT]]]
+
+
+@dataclass(frozen=True)
+class EnhanceCounts:
+    n: int
+    k_success: int
+    k_keep: int
+    k_break: int
+
+
+@dataclass(frozen=True)
+class EnhanceProbs:
+    ps: float
+    pk: float
+    pb: float
+    n: int
+
+
+@dataclass(frozen=True)
+class SellStats:
+    mean: float
+    std: float
+    n: int
