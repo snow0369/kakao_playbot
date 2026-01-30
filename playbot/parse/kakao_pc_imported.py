@@ -95,9 +95,7 @@ def parse_pc_export_format(text: str, prev_seq: int = 0) -> pd.DataFrame:
         if m_msg:
             flush()
             if current_date is None:
-                # 날짜 컨텍스트가 없으면 파일 내보내기 형식이 깨진 경우.
-                # 그래도 파싱이 되게 "오늘"로 대충 두지 말고, 안전하게 1970-01-01로 둠.
-                current_date = dt.date(1970, 1, 1)
+                raise ValueError("PC 포맷 파싱 실패: 날짜 헤더를 찾지 못했습니다.")
 
             sender = m_msg.group("sender").strip()
             ampm = m_msg.group("ampm")

@@ -1,24 +1,8 @@
 import json
 import os
-from dataclasses import dataclass
 from typing import Dict, Set, Tuple, Any, Union
 
-from playbot.types import WeaponInfo
-
-
-@dataclass
-class WeaponBook:
-    hierarchies: Dict[int, dict]
-    weapon_index: Dict[Tuple[str, int], Set[int]]
-    special_ids: Set[int]
-
-    def update(self,
-               hierarchies: Dict[int, dict],
-               weapon_index: Dict[Tuple[str, int], Set[int]],
-               special_ids: Set[int]) -> None:
-        self.hierarchies = hierarchies
-        self.weapon_index = weapon_index
-        self.special_ids = set(special_ids)
+from playbot.types import WeaponInfo, WeaponBook
 
 
 def load_weapon_book(

@@ -1,7 +1,6 @@
 from typing import Dict, Optional
 
-from playbot.types import ReplyInfo, WeaponInfo, ReplyType, EnhanceEvents, SellEvents
-from playbot.weaponbook import WeaponBook
+from playbot.types import ReplyInfo, WeaponInfo, ReplyType, EnhanceEvents, SellEvents, WeaponBook
 
 
 def add_to_statistics(

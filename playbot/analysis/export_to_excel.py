@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple, List
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
-from playbot.types import ReplyType, WeaponInfo, TimestampT  # adjust import paths to your project
-from playbot.weaponbook import WeaponBook
+from playbot.types import ReplyType, WeaponInfo, TimestampT, WeaponBook  # adjust import paths to your project
 
 
 def export_enhance_stats_xlsx(

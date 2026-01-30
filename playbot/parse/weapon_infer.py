@@ -4,8 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, Union, Set, Dict, Tuple, Callable, Optional, List
 
-from playbot.types import ReplyType, WeaponInfo, ReplyInfo
-from playbot.weaponbook import crawl_all_hierarchies_by_clicking, WeaponBook
+from playbot.types import ReplyType, WeaponInfo, ReplyInfo, WeaponBook
+from playbot.weaponbook import crawl_all_hierarchies_by_clicking
 
 
 # =========================

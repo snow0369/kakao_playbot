@@ -40,7 +40,6 @@ UPGRADE_COST_BY_LEVEL = {
 OUTCOMES = (ReplyType.ENHANCE_SUCCESS, ReplyType.ENHANCE_KEEP, ReplyType.ENHANCE_BREAK)
 
 
-#TODO: Generalize dataclass after building more strategies.
 @dataclass(frozen=True)
 class Decision:
     action: str                  # "SELL" or "ENHANCE"

@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Weapon Graph Viewer</title>
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      height: 100vh;
+    }
+    #panel {
+      padding: 12px;
+      border-right: 1px solid #ddd;
+      overflow: auto;
+    }
+    #cy {
+      width: 100%;
+      height: 100%;
+    }
+    label { display:block; margin-top: 10px; font-weight: 600; }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+      margin-top: 6px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .small {
+      color: #666;
+      font-size: 12px;
+      margin-top: 6px;
+      line-height: 1.3;
+    }
+    .btnrow {
+      display:flex; gap:8px; margin-top: 12px;
+    }
+    button {
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #f7f7f7;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+  <div id="panel">
+    <h3 style="margin-top:0">Weapon Graph</h3>
+
+    <label>Name contains</label>
+    <input id="qName" placeholder="e.g. 불꽃, 수르트, 검 ..."/>
+
+    <div class="row">
+      <div>
+        <label>Level min</label>
+        <input id="qLmin" type="number" placeholder="e.g. 0"/>
+      </div>
+      <div>
+        <label>Level max</label>
+        <input id="qLmax" type="number" placeholder="e.g. 18"/>
+      </div>
+    </div>
+
+    <label>HID filter (optional)</label>
+    <input id="qHid" placeholder="e.g. 1 or 1234"/>
+
+    <label>
+      <input id="qSpecial" type="checkbox" style="width:auto; margin-right:8px"/>
+      Special only
+    </label>
+
+    <div class="btnrow">
+      <button id="btnApply">Apply</button>
+      <button id="btnReset">Reset</button>
+      <button id="btnFit">Fit</button>
+    </div>
+
+    <div class="small">
+      Tips:
+      <ul>
+        <li>검색 후 <b>Apply</b>를 누르세요.</li>
+        <li>노드 클릭하면 상세가 아래에 표시됩니다.</li>
+        <li>그래프가 안 뜨면 로컬 서버로 여세요 (예: <code>python -m http.server</code>).</li>
+      </ul>
+    </div>
+
+    <h4>Selected</h4>
+    <pre id="sel">(none)</pre>
+  </div>
+
+  <div id="cy"></div>
+
+<script>
+async function main() {
+  const res = await fetch("graph.json");
+  const graph = await res.json();
+
+  const cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: graph.elements,
+    layout: { name: 'preset' },
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'label': 'data(label)',
+          'font-size': 10,
+          'text-wrap': 'wrap',
+          'text-max-width': 140,
+          'background-color': '#888',
+          'width': 10,
+          'height': 10,
+          'text-valign': 'top',
+          'text-halign': 'center',
+        }
+      },
+      {
+        selector: 'node[is_special]',
+        style: {
+          'border-width': 2,
+          'border-color': '#d33'
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'width': 1,
+          'line-color': '#bbb',
+          'target-arrow-shape': 'triangle',
+          'target-arrow-color': '#bbb',
+          'curve-style': 'bezier'
+        }
+      },
+      {
+        selector: '.faded',
+        style: {
+          'opacity': 0.08
+        }
+      },
+      {
+        selector: '.highlight',
+        style: {
+          'opacity': 1.0,
+          'background-color': '#111',
+          'line-color': '#111',
+          'target-arrow-color': '#111',
+          'border-color': '#111'
+        }
+      }
+    ]
+  });
+
+  const sel = document.getElementById('sel');
+  cy.on('tap', 'node', (evt) => {
+    const d = evt.target.data();
+    sel.textContent = JSON.stringify(d, null, 2);
+    // neighborhood highlight
+    cy.elements().removeClass('highlight');
+    cy.elements().addClass('faded');
+    evt.target.removeClass('faded').addClass('highlight');
+    evt.target.neighborhood().removeClass('faded').addClass('highlight');
+  });
+
+  function applyFilter() {
+    const qName = document.getElementById('qName').value.trim();
+    const qLmin = document.getElementById('qLmin').value.trim();
+    const qLmax = document.getElementById('qLmax').value.trim();
+    const qHid  = document.getElementById('qHid').value.trim();
+    const specialOnly = document.getElementById('qSpecial').checked;
+
+    const lmin = qLmin === "" ? null : parseInt(qLmin, 10);
+    const lmax = qLmax === "" ? null : parseInt(qLmax, 10);
+    const hid  = qHid  === "" ? null : parseInt(qHid, 10);
+
+    cy.elements().removeClass('faded highlight');
+
+    const nodes = cy.nodes().filter(n => {
+      const d = n.data();
+      if (qName && !String(d.name).includes(qName)) return false;
+      if (lmin !== null && d.level < lmin) return false;
+      if (lmax !== null && d.level > lmax) return false;
+      if (specialOnly && !d.is_special) return false;
+      if (hid !== null) {
+        const hs = d.hids || [];
+        if (!hs.includes(hid)) return false;
+      }
+      return true;
+    });
+
+    // show: nodes + their connecting edges (within visible nodes)
+    const visible = nodes.union(nodes.connectedEdges());
+
+    cy.elements().addClass('faded');
+    visible.removeClass('faded').addClass('highlight');
+  }
+
+  function resetFilter() {
+    document.getElementById('qName').value = "";
+    document.getElementById('qLmin').value = "";
+    document.getElementById('qLmax').value = "";
+    document.getElementById('qHid').value = "";
+    document.getElementById('qSpecial').checked = false;
+    sel.textContent = "(none)";
+    cy.elements().removeClass('faded highlight');
+  }
+
+  document.getElementById('btnApply').onclick = applyFilter;
+  document.getElementById('btnReset').onclick = resetFilter;
+  document.getElementById('btnFit').onclick = () => cy.fit();
+
+  // initial fit
+  cy.fit();
+}
+
+main().catch(err => {
+  document.getElementById('sel').textContent = "Failed to load graph.json.\n" + err;
+});
+</script>
+</body>
+</html>

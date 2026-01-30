@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Set
 
 TimestampT = datetime.datetime
 
@@ -103,3 +103,18 @@ class SellStats:
     mean: float
     std: float
     n: int
+
+
+@dataclass
+class WeaponBook:
+    hierarchies: Dict[int, dict]
+    weapon_index: Dict[Tuple[str, int], Set[int]]
+    special_ids: Set[int]
+
+    def update(self,
+               hierarchies: Dict[int, dict],
+               weapon_index: Dict[Tuple[str, int], Set[int]],
+               special_ids: Set[int]) -> None:
+        self.hierarchies = hierarchies
+        self.weapon_index = weapon_index
+        self.special_ids = set(special_ids)
