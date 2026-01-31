@@ -176,7 +176,7 @@ def send_command(input_xy,
     )
 
 
-def send_log(input_xy, msg, stop_flag: StopFlag):
+def send_log(input_xy, msg, stop_flag: StopFlag, header: str = "[로그]\n"):
     if stop_flag.is_stop_set():
         raise SystemExit("키보드 비상 종료")
 
@@ -188,7 +188,7 @@ def send_log(input_xy, msg, stop_flag: StopFlag):
     pag.press("backspace")
 
     # 입력
-    pyperclip.copy("[로그]\n" + msg)
+    pyperclip.copy(header + " " + msg)
     pag.hotkey(MOD, "v")
     time.sleep(0.03)
     pag.press("enter")

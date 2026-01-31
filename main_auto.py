@@ -5,7 +5,7 @@ from pynput import keyboard
 
 from config import load_username, load_botgroupkey, load_botuserkey
 from playbot.interact import StopFlag, start_emergency_listener, calibrate_click, select_all_copy_verified, \
-    send_command, wait_for_bot_turn, get_last_sender, refresh_chat_window_safe
+    send_command, wait_for_bot_turn, get_last_sender, refresh_chat_window_safe, send_log
 from playbot.parse import parse_kakao, extract_triplets, extract_triplets_last, extract_current_weapon, \
     extract_current_gold, make_reload_cb, WeaponIdPolicy, assign_weapon_ids
 
@@ -42,10 +42,12 @@ USE_BACKUP_CHAT_CLICK = True
 USE_STATISTICS = True
 WEAPON_TREE_DIR = "data/weapon_trees"
 
-
 # =========================
 # 의사결정 로직
 # =========================
+MIN_LEVEL, MAX_LEVEL = 8, 18
+
+
 def decide_next_command(weapon: WeaponInfo, gold: int, **kwargs) -> Tuple[Optional[str], str]:
     level = weapon.level
     # if level >= 20:
@@ -61,11 +63,12 @@ def decide_next_command(weapon: WeaponInfo, gold: int, **kwargs) -> Tuple[Option
         16: 12_000_000,
         17: 20_000_000,
     }
-    if level <= 8:
-        return COMMAND_ENHANCE, f"레벨 {level} ≤ 8 → 강화"
+    if level <= MIN_LEVEL:
+        return COMMAND_ENHANCE, f"레벨 {level} ≤ {MIN_LEVEL} → 강화"
 
-    if level >= 18:
-        return COMMAND_SELL, f"레벨 {level} >= 18 → 판매"
+    if level >= MAX_LEVEL:
+        return COMMAND_SELL, f"레벨 {level} >= {MAX_LEVEL} → 판매"
+
     if USE_STATISTICS:
         # Confidence thresholds (tune as needed)
         MIN_N = 20
@@ -181,6 +184,7 @@ def main():
     current_gold = extract_current_gold(reply0)
 
     print(f"\n[초기 상태] 무기=[{current_weapon.level}] {current_weapon.name}, 골드={current_gold:,}")
+    send_log(input_xy, MacroAction.RESUME, STOP, header="@매크로")
 
     loop_count = 0
     command = COMMAND_ENHANCE
@@ -256,7 +260,7 @@ def main():
             next_cmd, reason = decide_next_command(current_weapon, current_gold,
                                                    special_set=special_set, idlvl_cnt=idlvl_cnt,
                                                    grplvl_cnt=grplvl_cnt, lvl_cnt=lvl_cnt,
-                                                   sell_idlvl=sell_idlvl, sell_grplvl= sell_grplvl,
+                                                   sell_idlvl=sell_idlvl, sell_grplvl=sell_grplvl,
                                                    sell_lvl=sell_lvl)
         print(f"[결정] {reason}")
 
