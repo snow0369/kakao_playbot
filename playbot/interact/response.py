@@ -1,6 +1,6 @@
 import re
 import time
-from typing import Optional, List
+from typing import Optional, List, Tuple
 import sys
 
 import pyperclip
@@ -8,6 +8,7 @@ import pyautogui as pag
 
 from .global_stop import StopFlag
 from playbot.utils import _norm
+from ..types import MacroAction
 
 MOD = "command" if sys.platform == "darwin" else "ctrl"
 
@@ -196,22 +197,57 @@ def send_log(input_xy, msg, stop_flag: StopFlag, header: str = "[로그]\n"):
 
 
 # =========================
-# 마지막 발화자 판별 로직
+# 마지막 메세지 처리
+# 반복수행되니 parse_kakao 보다 간결한 버전
 # =========================
 _sender_line_re = re.compile(r"^\[([^\]]+)\]\s*\[[^\]]+\]", re.MULTILINE)
 
 
-def get_last_sender(full_text: str) -> Optional[str]:
+def _get_last_message(full_text: str) -> Optional[Tuple[str, str]]:
     """
-    Ctrl+A 복사 텍스트에서 마지막으로 등장하는 "[발화자] [오후 ...]" 라인의 발화자 반환
+    Ctrl+A 복사 텍스트에서 마지막 메시지의 (sender, content)를 반환
     """
     t = _norm(full_text)
     if not t:
         return None
+
     matches = list(_sender_line_re.finditer(t))
     if not matches:
         return None
-    return matches[-1].group(1).strip()
+
+    last = matches[-1]
+    sender = last.group(1).strip()
+
+    content = t[last.end():].strip()
+    return sender, content
+
+
+def get_last_sender(full_text: str) -> Optional[str]:
+    ret = _get_last_message(full_text)
+    if ret is None:
+        return None
+    return ret[0]
+
+
+def _parse_macro_action(
+        sender: str,
+        content: str,
+        user_name: str,
+        macro_name: str = "매크로",
+) -> Optional[MacroAction]:
+    if sender != user_name:
+        return None
+    if not content:
+        return None
+
+    text = content.strip()
+    if not text.startswith(f"@{macro_name}"):
+        return None
+
+    for action in MacroAction:
+        if action.value in text:
+            return action
+    return None
 
 
 # =========================
@@ -223,7 +259,8 @@ def wait_for_bot_turn(
         bot_sender_name,
         stop_flag: StopFlag,
         timeout_sec: float = 8.0,
-        poll_interval: float = 0.35
+        poll_interval: float = 0.35,
+        macro_name: str = "매크로",
 ) -> str:
     """
     Ctrl+A 복사 텍스트의 마지막 발화자가 USER_NAME이면 '아직 응답 미도착'으로 간주하고 계속 대기.
@@ -240,7 +277,23 @@ def wait_for_bot_turn(
         full = select_all_copy_verified(chat_text_xy_list, stop_flag, retries=2)
         last_seen = full
 
-        sender = get_last_sender(full)
+        last = _get_last_message(full)
+        if last is None:
+            time.sleep(poll_interval)
+            continue
+
+        sender, content = last
+
+        macro_action = _parse_macro_action(
+            sender=sender,
+            content=content,
+            user_name=user_name,
+            macro_name=macro_name,
+        )
+
+        # 매크로 제어 메시지는 봇 대기 판정에서 제외
+        if macro_action is not None:
+            return full
 
         # 마지막이 사용자면 아직 응답이 완결되지 않았다고 보고 계속 기다림
         if sender == user_name:
