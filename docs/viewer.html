@@ -55,6 +55,18 @@
       border-radius: 8px;
       border: 1px solid #eee;
     }
+    .checkline {
+      font-weight: 600;
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .checkline input {
+      width: auto;
+      margin: 0;
+      padding: 0;
+    }
   </style>
 </head>
 <body>
@@ -78,9 +90,15 @@
     <label>HID filter (optional)</label>
     <input id="qHid" placeholder="e.g. 1 or 1234"/>
 
-    <label>
-      <input id="qSpecial" type="checkbox" style="width:auto; margin-right:8px"/>
+    <label class="checkline">
+      <input id="qSpecial" type="checkbox"/>
       Special only
+    </label>
+
+    <!-- NEW -->
+    <label class="checkline">
+      <input id="qHidClosure" type="checkbox"/>
+      Highlight all nodes in selected node's HID(s)
     </label>
 
     <div class="btnrow">
@@ -165,14 +183,59 @@ async function main() {
   });
 
   const sel = document.getElementById('sel');
-  cy.on('tap', 'node', (evt) => {
-    const d = evt.target.data();
-    sel.textContent = JSON.stringify(d, null, 2);
-    // neighborhood highlight
-    cy.elements().removeClass('highlight');
+  let lastSelectedNode = null;
+
+  function applySelectionHighlight(node) {
+    cy.elements().removeClass('highlight faded');
+    if (!node) return;
+
+    const closureOn = document.getElementById('qHidClosure').checked;
+
+    // OFF: neighborhood highlight
+    if (!closureOn) {
+      cy.elements().addClass('faded');
+      node.removeClass('faded').addClass('highlight');
+      node.neighborhood().removeClass('faded').addClass('highlight');
+      return;
+    }
+
+    // ON: highlight all nodes/edges that belong to ANY hid in the selected node's hids
+    const hids = node.data('hids') || [];
+    const hidSet = new Set(hids);
+
+    const nodes = cy.nodes().filter(n => {
+      const hs = n.data('hids') || [];
+      for (const h of hs) {
+        if (hidSet.has(h)) return true;
+      }
+      return false;
+    });
+
+    const edges = cy.edges().filter(e => {
+      const eh = e.data('hids') || [];
+      for (const h of eh) {
+        if (hidSet.has(h)) return true;
+      }
+      return false;
+    });
+
+    const visible = nodes.union(edges);
+
     cy.elements().addClass('faded');
-    evt.target.removeClass('faded').addClass('highlight');
-    evt.target.neighborhood().removeClass('faded').addClass('highlight');
+    visible.removeClass('faded').addClass('highlight');
+
+    // ensure the selected node stands out
+    node.removeClass('faded').addClass('highlight');
+  }
+
+  cy.on('tap', 'node', (evt) => {
+    const node = evt.target;
+    lastSelectedNode = node;
+
+    const d = node.data();
+    sel.textContent = JSON.stringify(d, null, 2);
+
+    applySelectionHighlight(node);
   });
 
   function applyFilter() {
@@ -201,11 +264,16 @@ async function main() {
       return true;
     });
 
-    // show: nodes + their connecting edges (within visible nodes)
     const visible = nodes.union(nodes.connectedEdges());
 
     cy.elements().addClass('faded');
     visible.removeClass('faded').addClass('highlight');
+
+    // If a node is already selected, keep selection highlight behavior consistent
+    if (lastSelectedNode) {
+      // re-apply selection highlight on top
+      applySelectionHighlight(lastSelectedNode);
+    }
   }
 
   function resetFilter() {
@@ -214,7 +282,10 @@ async function main() {
     document.getElementById('qLmax').value = "";
     document.getElementById('qHid').value = "";
     document.getElementById('qSpecial').checked = false;
+    document.getElementById('qHidClosure').checked = false;
+
     sel.textContent = "(none)";
+    lastSelectedNode = null;
     cy.elements().removeClass('faded highlight');
   }
 
@@ -222,7 +293,11 @@ async function main() {
   document.getElementById('btnReset').onclick = resetFilter;
   document.getElementById('btnFit').onclick = () => cy.fit();
 
-  // initial fit
+  // NEW: toggle closure highlight immediately
+  document.getElementById('qHidClosure').onchange = () => {
+    applySelectionHighlight(lastSelectedNode);
+  };
+
   cy.fit();
 }
 
